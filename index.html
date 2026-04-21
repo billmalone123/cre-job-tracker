@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CRE Job Tracker</title>
+  <style>
+    :root {
+      --bg:       #0b1726;
+      --surface:  #111f35;
+      --surface2: #172741;
+      --border:   #1e3554;
+      --accent:   #2f80ed;
+      --accent-h: #1a6fd4;
+      --text:     #dce9f9;
+      --muted:    #6b8db5;
+      --danger:   #e05252;
+      --green:    #27ae74;
+      --yellow:   #d4891a;
+      --purple:   #7c5cbf;
+      --r:        5px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 14px;
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+
+    /* ── Modals ─────────────────────────────────────────────────────────── */
+    .overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.7);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 200; padding: 16px;
+    }
+    .overlay.hidden { display: none; }
+
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 28px;
+      width: 100%; max-width: 440px;
+    }
+    .modal h2 { font-size: 16px; margin-bottom: 6px; }
+    .modal p  { font-size: 13px; color: var(--muted); margin-bottom: 18px; line-height: 1.55; }
+
+    /* ── Header ──────────────────────────────────────────────────────────── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 24px;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px;
+      position: sticky; top: 0; z-index: 10;
+    }
+    header h1 { font-size: 17px; font-weight: 700; letter-spacing: -.2px; }
+    .header-sub { font-size: 11px; color: var(--muted); margin-top: 1px; }
+    .header-right { display: flex; gap: 8px; align-items: center; }
+
+    /* ── Stats ───────────────────────────────────────────────────────────── */
+    .stats {
+      display: flex; gap: 1px;
+      background: var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+    .stat {
+      flex: 1; padding: 12px 16px;
+      background: var(--surface);
+      text-align: center;
+    }
+    .stat-n  { font-size: 22px; font-weight: 700; }
+    .stat-lbl{ font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-top: 1px; }
+
+    /* ── Layout ──────────────────────────────────────────────────────────── */
+    main { max-width: 1440px; margin: 0 auto; padding: 20px 20px 40px; }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .card-title {
+      font-size: 11px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: .6px;
+      color: var(--muted); margin-bottom: 14px;
+    }
+
+    /* ── Inputs ──────────────────────────────────────────────────────────── */
+    input, select, textarea {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      color: var(--text);
+      font-size: 13px;
+      padding: 8px 11px;
+      width: 100%;
+      font-family: inherit;
+      transition: border-color .15s;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: none; border-color: var(--accent);
+    }
+    input::placeholder { color: var(--muted); }
+    select option { background: var(--surface2); }
+    textarea { resize: vertical; min-height: 64px; }
+
+    label {
+      display: block;
+      font-size: 11px; font-weight: 500;
+      text-transform: uppercase; letter-spacing: .4px;
+      color: var(--muted); margin-bottom: 4px;
+    }
+
+    /* ── Buttons ─────────────────────────────────────────────────────────── */
+    .btn {
+      padding: 8px 16px;
+      border: none; border-radius: var(--r);
+      font-size: 13px; font-weight: 500;
+      cursor: pointer; font-family: inherit;
+      transition: opacity .15s, background .15s;
+      white-space: nowrap;
+    }
+    .btn:disabled { opacity: .45; cursor: not-allowed; }
+
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:not(:disabled):hover { background: var(--accent-h); }
+
+    .btn-ghost  {
+      background: transparent; color: var(--muted);
+      border: 1px solid var(--border);
+    }
+    .btn-ghost:hover { color: var(--text); border-color: var(--muted); }
+
+    .btn-danger { background: transparent; color: var(--danger); border: 1px solid transparent; font-size: 12px; padding: 4px 10px; }
+    .btn-danger:hover { background: rgba(224,82,82,.1); }
+
+    .btn-sm { padding: 6px 12px; font-size: 12px; }
+
+    /* ── URL row ─────────────────────────────────────────────────────────── */
+    .url-row { display: flex; gap: 8px; margin-bottom: 10px; }
+    .url-row input { flex: 1; }
+    @media(max-width:600px) { .url-row { flex-direction: column; } }
+
+    /* ── Alert ───────────────────────────────────────────────────────────── */
+    .alert {
+      padding: 9px 13px; border-radius: var(--r);
+      font-size: 12px; margin-bottom: 12px;
+      display: flex; align-items: flex-start; gap: 7px;
+    }
+    .alert.hidden { display: none; }
+    .alert-info    { background: rgba(47,128,237,.12); border: 1px solid rgba(47,128,237,.25); color: #93c5fd; }
+    .alert-success { background: rgba(39,174,116,.12); border: 1px solid rgba(39,174,116,.25); color: #6ee7b7; }
+    .alert-error   { background: rgba(224,82,82,.12);  border: 1px solid rgba(224,82,82,.25);  color: #fca5a5; }
+
+    .spinner {
+      display: inline-block; width: 13px; height: 13px; flex-shrink: 0;
+      border: 2px solid rgba(147,197,253,.25); border-top-color: #93c5fd;
+      border-radius: 50%; animation: spin .65s linear infinite; margin-top: 1px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Form grid ───────────────────────────────────────────────────────── */
+    .fgrid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+      gap: 12px;
+    }
+    .fg { display: flex; flex-direction: column; }
+    .fg.span2 { grid-column: span 2; }
+    .fg.full  { grid-column: 1/-1; }
+
+    @media(max-width:480px) { .fgrid { grid-template-columns: 1fr; } .fg.span2 { grid-column: span 1; } }
+
+    .form-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+
+    /* ── Table ───────────────────────────────────────────────────────────── */
+    .tbl-header {
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 8px; margin-bottom: 10px;
+    }
+    .tbl-header-left { display: flex; align-items: center; gap: 10px; }
+
+    .filter-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+    .filter-row select, .filter-row input { width: auto; flex: 1; min-width: 130px; font-size: 12px; padding: 6px 10px; }
+
+    .tbl-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--r); }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+
+    th {
+      background: var(--surface2);
+      padding: 9px 13px;
+      text-align: left;
+      font-size: 10px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: .5px;
+      color: var(--muted);
+      white-space: nowrap;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer; user-select: none;
+    }
+    th:hover { color: var(--text); }
+    th.sorted { color: var(--accent); }
+
+    td {
+      padding: 9px 13px;
+      border-bottom: 1px solid rgba(30,53,84,.55);
+      vertical-align: middle;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(47,128,237,.04); }
+
+    .co-name { font-weight: 500; }
+    .co-link  { color: var(--accent); text-decoration: none; font-size: 11px; }
+    .co-link:hover { text-decoration: underline; }
+
+    .notes-td {
+      max-width: 180px; color: var(--muted);
+      font-size: 11px; line-height: 1.4;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+
+    /* ── Status badges ───────────────────────────────────────────────────── */
+    .badge {
+      display: inline-block; padding: 2px 8px; border-radius: 20px;
+      font-size: 10px; font-weight: 600; letter-spacing: .3px; white-space: nowrap;
+    }
+    .b-Interested   { background: rgba(107,141,181,.18); color: #93afd6; }
+    .b-Applied      { background: rgba(47,128,237,.18);  color: #60a5fa; }
+    .b-PhoneScreen  { background: rgba(212,137,26,.18);  color: #fbbf24; }
+    .b-Interview    { background: rgba(124,92,191,.18);  color: #a78bfa; }
+    .b-Offer        { background: rgba(39,174,116,.18);  color: #34d399; }
+    .b-Rejected     { background: rgba(224,82,82,.18);   color: #f87171; }
+
+    /* inline status/bucket selects in table */
+    .tsel {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: var(--r); color: var(--text);
+      font-size: 12px; padding: 4px 8px;
+      font-family: inherit; cursor: pointer; width: 100%;
+    }
+    .tsel:focus { outline: none; border-color: var(--accent); }
+
+    /* ── Empty state ─────────────────────────────────────────────────────── */
+    .empty {
+      text-align: center; padding: 52px 20px;
+      color: var(--muted); font-size: 13px;
+    }
+    .empty strong { display: block; font-size: 15px; color: #4a6d96; margin-bottom: 5px; }
+
+    /* ── Count pill ──────────────────────────────────────────────────────── */
+    .pill {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 20px; padding: 2px 10px;
+      font-size: 11px; color: var(--muted);
+    }
+
+    /* ── API key dot ─────────────────────────────────────────────────────── */
+    .dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      display: inline-block; margin-right: 5px;
+    }
+    .dot-on  { background: var(--green); }
+    .dot-off { background: var(--danger); }
+
+    /* ── Add-form collapsible ────────────────────────────────────────────── */
+    #addSection { display: none; }
+    #addSection.open { display: block; }
+
+    /* ── Divider ─────────────────────────────────────────────────────────── */
+    .divider {
+      text-align: center; font-size: 11px; color: var(--muted);
+      margin: 10px 0; position: relative;
+    }
+    .divider::before, .divider::after {
+      content: ''; position: absolute; top: 50%;
+      width: 42%; height: 1px; background: var(--border);
+    }
+    .divider::before { left: 0; }
+    .divider::after  { right: 0; }
+  </style>
+</head>
+<body>
+
+<!-- ── API Key Modal ────────────────────────────────────────────────────────── -->
+<div id="apiOverlay" class="overlay hidden">
+  <div class="modal">
+    <h2>Anthropic API Key</h2>
+    <p>Your key is stored only in your browser's localStorage and is sent exclusively to <strong>api.anthropic.com</strong> when you click "Fetch Details".</p>
+    <div class="fg" style="margin-bottom:16px">
+      <label>API Key</label>
+      <input id="apiKeyInp" type="password" placeholder="sk-ant-api03-…">
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-ghost" id="apiCancelBtn">Cancel</button>
+      <button class="btn btn-primary" id="apiSaveBtn">Save Key</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Delete Confirm Modal ──────────────────────────────────────────────────── -->
+<div id="delOverlay" class="overlay hidden">
+  <div class="modal" style="max-width:360px">
+    <h2>Delete Application</h2>
+    <p id="delMsg">Remove this application? This action cannot be undone.</p>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-ghost" id="delCancelBtn">Cancel</button>
+      <button class="btn btn-primary" style="background:var(--danger)" id="delConfirmBtn">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Header ────────────────────────────────────────────────────────────────── -->
+<header>
+  <div>
+    <h1>CRE Job Tracker</h1>
+    <div class="header-sub">Commercial Real Estate Opportunities</div>
+  </div>
+  <div class="header-right">
+    <button class="btn btn-ghost btn-sm" id="apiKeyBtn">
+      <span class="dot dot-off" id="apiDot"></span>API Key
+    </button>
+    <button class="btn btn-primary btn-sm" id="openAddBtn">+ Add Job</button>
+  </div>
+</header>
+
+<!-- ── Stats Bar ─────────────────────────────────────────────────────────────── -->
+<div class="stats" id="statsBar">
+  <div class="stat"><div class="stat-n" id="sTotal">0</div><div class="stat-lbl">Total</div></div>
+  <div class="stat"><div class="stat-n" id="sActive">0</div><div class="stat-lbl">Active</div></div>
+  <div class="stat"><div class="stat-n" id="sInterview">0</div><div class="stat-lbl">Interviews</div></div>
+  <div class="stat"><div class="stat-n" id="sOffer">0</div><div class="stat-lbl">Offers</div></div>
+</div>
+
+<!-- ── Main ──────────────────────────────────────────────────────────────────── -->
+<main>
+
+  <!-- Add Section -->
+  <div id="addSection">
+    <div class="card">
+      <div class="card-title">Add Application</div>
+
+      <!-- URL Scraper -->
+      <div class="url-row">
+        <input id="urlInp" type="url" placeholder="Paste job posting URL to auto-fill details…">
+        <button class="btn btn-primary" id="fetchBtn">Fetch Details</button>
+      </div>
+      <div id="scrapeAlert" class="alert hidden"></div>
+
+      <div class="divider">or fill in manually</div>
+
+      <!-- Form -->
+      <div id="formAlert" class="alert hidden"></div>
+      <div class="fgrid">
+        <div class="fg">
+          <label>Company *</label>
+          <input id="fCo" type="text" placeholder="CBRE, JLL, Eastdil…">
+        </div>
+        <div class="fg">
+          <label>Job Title *</label>
+          <input id="fTitle" type="text" placeholder="Investment Sales Associate…">
+        </div>
+        <div class="fg">
+          <label>Location</label>
+          <input id="fLoc" type="text" placeholder="New York, NY">
+        </div>
+        <div class="fg">
+          <label>Date Found</label>
+          <input id="fDate" type="date">
+        </div>
+        <div class="fg">
+          <label>Application Deadline</label>
+          <input id="fDeadline" type="date">
+        </div>
+        <div class="fg">
+          <label>Status</label>
+          <select id="fStatus">
+            <option>Interested</option>
+            <option>Applied</option>
+            <option>Phone Screen</option>
+            <option>Interview</option>
+            <option>Offer</option>
+            <option>Rejected</option>
+          </select>
+        </div>
+        <div class="fg">
+          <label>Target Bucket</label>
+          <select id="fBucket">
+            <option value="">— Select —</option>
+            <option>Capital Markets Advisory</option>
+            <option>Investment Sales Brokerage</option>
+            <option>Leasing Brokerage</option>
+            <option>Development</option>
+          </select>
+        </div>
+        <div class="fg">
+          <label>Job URL</label>
+          <input id="fUrl" type="url" placeholder="https://…">
+        </div>
+        <div class="fg full">
+          <label>Notes</label>
+          <textarea id="fNotes" placeholder="Recruiter name, referral, comp details, follow-up date…"></textarea>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-ghost" id="cancelFormBtn">Cancel</button>
+        <button class="btn btn-primary" id="saveJobBtn">Save Application</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Table Section -->
+  <div class="card">
+    <div class="tbl-header">
+      <div class="tbl-header-left">
+        <span class="card-title" style="margin:0">Applications</span>
+        <span class="pill" id="countPill">0</span>
+      </div>
+      <button class="btn btn-ghost btn-sm" id="exportBtn">Export CSV</button>
+    </div>
+
+    <div class="filter-row">
+      <select id="fltStatus">
+        <option value="">All Statuses</option>
+        <option>Interested</option><option>Applied</option>
+        <option>Phone Screen</option><option>Interview</option>
+        <option>Offer</option><option>Rejected</option>
+      </select>
+      <select id="fltBucket">
+        <option value="">All Buckets</option>
+        <option>Capital Markets Advisory</option>
+        <option>Investment Sales Brokerage</option>
+        <option>Leasing Brokerage</option>
+        <option>Development</option>
+      </select>
+      <input id="fltSearch" type="text" placeholder="Search company or title…" style="min-width:160px">
+    </div>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th data-col="co">Company</th>
+            <th data-col="title">Title</th>
+            <th data-col="loc">Location</th>
+            <th data-col="date">Date Found</th>
+            <th data-col="deadline">Deadline</th>
+            <th data-col="status">Status</th>
+            <th data-col="bucket">Bucket</th>
+            <th>Notes</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <div class="empty hidden" id="emptyState">
+        <strong>No applications yet</strong>
+        Click "+ Add Job" to get started.
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+// ─── State ────────────────────────────────────────────────────────────────────
+const LS_JOBS = 'cre_tracker_jobs';
+const LS_KEY  = 'cre_anthropic_key';
+
+let jobs    = JSON.parse(localStorage.getItem(LS_JOBS) || '[]');
+let sortCol = 'date';
+let sortDir = 'desc';
+let delId   = null;
+
+// ─── Utilities ────────────────────────────────────────────────────────────────
+const $  = id => document.getElementById(id);
+const esc = s  => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const uid = ()  => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+const iso = ()  => new Date().toISOString().slice(0,10);
+const fmt = d   => d ? new Date(d+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
+
+function persist() { localStorage.setItem(LS_JOBS, JSON.stringify(jobs)); }
+function apiKey()  { return localStorage.getItem(LS_KEY) || ''; }
+
+function badgeClass(s) {
+  return 'badge b-' + (s||'').replace(/\s+/g,'');
+}
+
+// ─── API Key Modal ────────────────────────────────────────────────────────────
+function updateDot() {
+  const dot = $('apiDot');
+  dot.className = 'dot ' + (apiKey() ? 'dot-on' : 'dot-off');
+}
+
+$('apiKeyBtn').onclick = () => {
+  $('apiKeyInp').value = apiKey() ? '(set — paste new to replace)' : '';
+  $('apiOverlay').classList.remove('hidden');
+  $('apiCancelBtn').classList.toggle('hidden', !apiKey());
+};
+
+$('apiCancelBtn').onclick = () => $('apiOverlay').classList.add('hidden');
+
+$('apiSaveBtn').onclick = () => {
+  const v = $('apiKeyInp').value.trim();
+  if (!v || v.startsWith('(set')) { $('apiOverlay').classList.add('hidden'); return; }
+  if (!v.startsWith('sk-ant-')) { alert('Key should start with sk-ant-'); return; }
+  localStorage.setItem(LS_KEY, v);
+  updateDot();
+  $('apiOverlay').classList.add('hidden');
+};
+
+// ─── Add / Cancel Form ────────────────────────────────────────────────────────
+$('openAddBtn').onclick = () => {
+  $('addSection').classList.toggle('open');
+  if ($('addSection').classList.contains('open')) {
+    $('fDate').value = iso();
+    $('addSection').scrollIntoView({ behavior:'smooth', block:'nearest' });
+  }
+};
+
+$('cancelFormBtn').onclick = resetForm;
+
+function resetForm() {
+  ['fCo','fTitle','fLoc','fDeadline','fNotes','fUrl','urlInp'].forEach(id => $(id).value='');
+  $('fDate').value = iso();
+  $('fStatus').value = 'Interested';
+  $('fBucket').value = '';
+  hideAlert('scrapeAlert');
+  hideAlert('formAlert');
+  $('addSection').classList.remove('open');
+}
+
+// ─── Alerts ───────────────────────────────────────────────────────────────────
+function showAlert(id, type, html, spinner) {
+  const el = $(id);
+  el.className = `alert alert-${type}`;
+  el.innerHTML = (spinner ? '<span class="spinner"></span>' : '') + html;
+  el.classList.remove('hidden');
+}
+function hideAlert(id) { $(id).classList.add('hidden'); }
+
+// ─── URL Scraper ──────────────────────────────────────────────────────────────
+$('fetchBtn').onclick = async () => {
+  const url = $('urlInp').value.trim();
+  if (!url) { showAlert('scrapeAlert','error','Paste a URL first.'); return; }
+
+  const key = apiKey();
+  if (!key) {
+    showAlert('scrapeAlert','error','No API key set — click <strong>API Key</strong> in the header first.');
+    return;
+  }
+
+  $('fetchBtn').disabled = true;
+  showAlert('scrapeAlert','info','Fetching page…',true);
+
+  try {
+    // Step 1 — CORS proxy
+    const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+    const pRes  = await fetch(proxy, { signal: AbortSignal.timeout(12000) });
+    if (!pRes.ok) throw new Error('CORS proxy returned ' + pRes.status);
+    const pData = await pRes.json();
+    const html  = pData.contents || '';
+    if (html.length < 80) throw new Error('Page returned no content');
+
+    // Strip tags → plain text, cap at 10 000 chars
+    const text = html
+      .replace(/<style[\s\S]*?<\/style>/gi,'')
+      .replace(/<script[\s\S]*?<\/script>/gi,'')
+      .replace(/<[^>]+>/g,' ')
+      .replace(/\s{2,}/g,' ')
+      .trim()
+      .slice(0, 10000);
+
+    showAlert('scrapeAlert','info','Analyzing with Claude…',true);
+
+    // Step 2 — Claude
+    const body = {
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 512,
+      messages: [{
+        role: 'user',
+        content: `Extract job details from this job posting. Return ONLY a valid JSON object — no markdown, no explanation.
+
+Fields:
+- company     (string)
+- title       (string)
+- location    (string — city, state or "Remote")
+- deadline    (string — ISO date YYYY-MM-DD, or "" if not listed)
+- bucket_guess (string — one of exactly: "Capital Markets Advisory", "Investment Sales Brokerage", "Leasing Brokerage", "Development", or "")
+- notes_prefill (string — 1-2 sentences: key requirements, comp if mentioned, team context)
+
+Bucket logic:
+• Capital Markets Advisory — debt/equity placement, structured finance, investment banking-adjacent
+• Investment Sales Brokerage — buying/selling commercial properties, deal teams, disposition
+• Leasing Brokerage — leasing office/retail/industrial, tenant or landlord rep
+• Development — ground-up development, construction management, value-add, asset management
+
+Text:
+${text}`
+      }]
+    };
+
+    const cRes = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(20000)
+    });
+
+    if (!cRes.ok) {
+      const e = await cRes.json().catch(() => ({}));
+      throw new Error(e?.error?.message || `Claude API error ${cRes.status}`);
+    }
+
+    const cData   = await cRes.json();
+    const rawText = cData.content?.[0]?.text || '';
+    const match   = rawText.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error('Could not find JSON in Claude response');
+
+    const d = JSON.parse(match[0]);
+
+    // Fill form
+    if (d.company)      $('fCo').value       = d.company;
+    if (d.title)        $('fTitle').value     = d.title;
+    if (d.location)     $('fLoc').value       = d.location;
+    if (d.deadline)     $('fDeadline').value  = d.deadline;
+    if (d.notes_prefill)$('fNotes').value     = d.notes_prefill;
+    $('fUrl').value = url;
+    $('fDate').value = iso();
+    if (d.bucket_guess) {
+      for (const opt of $('fBucket').options) {
+        if (opt.value === d.bucket_guess) { $('fBucket').value = d.bucket_guess; break; }
+      }
+    }
+
+    showAlert('scrapeAlert','success',
+      `Found: <strong>${esc(d.title||'?')}</strong> at <strong>${esc(d.company||'?')}</strong> — review and save below.`);
+
+  } catch (err) {
+    console.error(err);
+    showAlert('scrapeAlert','error',
+      `Auto-fill failed: ${esc(err.message)}. Fill in the form manually below.`);
+    $('fUrl').value = url;
+    $('fDate').value = iso();
+  } finally {
+    $('fetchBtn').disabled = false;
+  }
+};
+
+// ─── Save Job ─────────────────────────────────────────────────────────────────
+$('saveJobBtn').onclick = () => {
+  const co    = $('fCo').value.trim();
+  const title = $('fTitle').value.trim();
+  if (!co || !title) {
+    showAlert('formAlert','error','Company and Job Title are required.');
+    return;
+  }
+  hideAlert('formAlert');
+
+  jobs.unshift({
+    id:       uid(),
+    co,
+    title,
+    loc:      $('fLoc').value.trim(),
+    date:     $('fDate').value || iso(),
+    deadline: $('fDeadline').value,
+    status:   $('fStatus').value,
+    bucket:   $('fBucket').value,
+    url:      $('fUrl').value.trim(),
+    notes:    $('fNotes').value.trim(),
+    ts:       Date.now()
+  });
+
+  persist();
+  render();
+  resetForm();
+};
+
+// ─── Delete ───────────────────────────────────────────────────────────────────
+function askDelete(id, co) {
+  delId = id;
+  $('delMsg').textContent = `Remove "${co}"? This cannot be undone.`;
+  $('delOverlay').classList.remove('hidden');
+}
+
+$('delCancelBtn').onclick  = () => { $('delOverlay').classList.add('hidden'); delId = null; };
+$('delConfirmBtn').onclick = () => {
+  if (!delId) return;
+  jobs = jobs.filter(j => j.id !== delId);
+  persist(); render();
+  $('delOverlay').classList.add('hidden'); delId = null;
+};
+
+// ─── Inline field update ──────────────────────────────────────────────────────
+function updateField(id, field, val) {
+  const j = jobs.find(j => j.id === id);
+  if (!j) return;
+  j[field] = val;
+  persist();
+  renderStats();
+}
+
+// ─── Sorting ──────────────────────────────────────────────────────────────────
+document.querySelectorAll('th[data-col]').forEach(th => {
+  th.onclick = () => {
+    const c = th.dataset.col;
+    sortDir = (sortCol === c && sortDir === 'asc') ? 'desc' : 'asc';
+    sortCol = c;
+    render();
+  };
+});
+
+function sorted(list) {
+  return [...list].sort((a,b) => {
+    let av = a[sortCol]||'', bv = b[sortCol]||'';
+    const cmp = av < bv ? -1 : av > bv ? 1 : 0;
+    return sortDir === 'asc' ? cmp : -cmp;
+  });
+}
+
+// ─── Filter ───────────────────────────────────────────────────────────────────
+['fltStatus','fltBucket','fltSearch'].forEach(id => {
+  $(id).addEventListener('input',  render);
+  $(id).addEventListener('change', render);
+});
+
+function filtered() {
+  const st  = $('fltStatus').value;
+  const bk  = $('fltBucket').value;
+  const q   = $('fltSearch').value.toLowerCase();
+  return jobs.filter(j => {
+    if (st && j.status !== st)   return false;
+    if (bk && j.bucket !== bk)   return false;
+    if (q && !`${j.co} ${j.title}`.toLowerCase().includes(q)) return false;
+    return true;
+  });
+}
+
+// ─── Render ───────────────────────────────────────────────────────────────────
+function render() {
+  const list = sorted(filtered());
+  const tbody = $('tbody');
+
+  // Sort indicators
+  document.querySelectorAll('th[data-col]').forEach(th => {
+    th.classList.toggle('sorted', th.dataset.col === sortCol);
+    const arrow = th.dataset.col === sortCol ? (sortDir === 'asc' ? ' ↑' : ' ↓') : '';
+    th.dataset.arrow = arrow;
+    th.lastChild.textContent = arrow; // simple — text node at end
+  });
+  // Rebuild headers cleanly
+  document.querySelectorAll('th[data-col]').forEach(th => {
+    const base = th.textContent.replace(/[ ↑↓]+$/,'');
+    const arrow = th.dataset.col === sortCol ? (sortDir === 'asc' ? ' ↑' : ' ↓') : '';
+    th.textContent = base + arrow;
+  });
+
+  // Count pill
+  $('countPill').textContent = list.length === jobs.length
+    ? `${jobs.length}`
+    : `${list.length} of ${jobs.length}`;
+
+  if (list.length === 0) {
+    tbody.innerHTML = '';
+    $('emptyState').classList.remove('hidden');
+    $('emptyState').querySelector('strong').textContent =
+      jobs.length === 0 ? 'No applications yet' : 'No matches';
+    $('emptyState').lastChild.textContent =
+      jobs.length === 0 ? ' Click "+ Add Job" to get started.' : ' Clear the filters to see all.';
+    return;
+  }
+
+  $('emptyState').classList.add('hidden');
+
+  const statusOpts = ['Interested','Applied','Phone Screen','Interview','Offer','Rejected'];
+  const bucketOpts = ['','Capital Markets Advisory','Investment Sales Brokerage','Leasing Brokerage','Development'];
+
+  tbody.innerHTML = list.map(j => {
+    const coCell = j.url
+      ? `<div class="co-name"><a href="${esc(j.url)}" target="_blank" rel="noopener" class="co-link">${esc(j.co)} ↗</a></div>`
+      : `<div class="co-name">${esc(j.co)}</div>`;
+
+    const statusSel = `<select class="tsel" onchange="updateField('${j.id}','status',this.value)">
+      ${statusOpts.map(s=>`<option${j.status===s?' selected':''}>${s}</option>`).join('')}
+    </select>`;
+
+    const bucketSel = `<select class="tsel" onchange="updateField('${j.id}','bucket',this.value)">
+      ${bucketOpts.map(b=>`<option value="${esc(b)}"${j.bucket===b?' selected':''}>${b||'—'}</option>`).join('')}
+    </select>`;
+
+    const dl = j.deadline;
+    const dlStyle = dl && dl < iso() ? 'color:var(--danger)' : '';
+
+    return `<tr>
+      <td>${coCell}</td>
+      <td>${esc(j.title)}</td>
+      <td style="color:var(--muted);font-size:12px">${esc(j.loc)||'—'}</td>
+      <td style="white-space:nowrap;font-size:12px">${fmt(j.date)}</td>
+      <td style="white-space:nowrap;font-size:12px;${dlStyle}">${fmt(dl)}</td>
+      <td>${statusSel}</td>
+      <td style="font-size:12px">${bucketSel}</td>
+      <td class="notes-td" title="${esc(j.notes)}">${esc(j.notes)||'—'}</td>
+      <td><button class="btn btn-danger" onclick="askDelete('${j.id}','${esc(j.co)}')">✕</button></td>
+    </tr>`;
+  }).join('');
+
+  renderStats();
+}
+
+function renderStats() {
+  $('sTotal').textContent     = jobs.length;
+  $('sActive').textContent    = jobs.filter(j=>['Applied','Phone Screen','Interview'].includes(j.status)).length;
+  $('sInterview').textContent = jobs.filter(j=>j.status==='Interview').length;
+  $('sOffer').textContent     = jobs.filter(j=>j.status==='Offer').length;
+}
+
+// ─── CSV Export ───────────────────────────────────────────────────────────────
+$('exportBtn').onclick = () => {
+  if (!jobs.length) { alert('No applications to export.'); return; }
+  const cols    = ['co','title','loc','date','deadline','status','bucket','url','notes'];
+  const headers = ['Company','Title','Location','Date Found','Deadline','Status','Bucket','URL','Notes'];
+  const q = v => { const s=String(v||''); return (s.includes(',')||s.includes('"')||s.includes('\n'))?`"${s.replace(/"/g,'""')}"`:s; };
+  const rows = [headers, ...jobs.map(j=>cols.map(c=>q(j[c])))];
+  const csv  = rows.map(r=>r.join(',')).join('\n');
+  const a    = document.createElement('a');
+  a.href     = URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download = `cre-jobs-${iso()}.csv`;
+  a.click();
+};
+
+// ─── Close overlays on backdrop click ────────────────────────────────────────
+$('apiOverlay').onclick = e => { if(e.target===e.currentTarget) $('apiOverlay').classList.add('hidden'); };
+$('delOverlay').onclick = e => { if(e.target===e.currentTarget) { $('delOverlay').classList.add('hidden'); delId=null; } };
+
+// ─── Boot ─────────────────────────────────────────────────────────────────────
+$('fDate').value = iso();
+updateDot();
+if (!apiKey()) {
+  $('apiOverlay').classList.remove('hidden');
+  $('apiCancelBtn').classList.add('hidden');
+}
+render();
+</script>
+</body>
+</html>
