@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "CRE Job Tracker",
+  "version": "1.0.0",
+  "description": "Track CRE job applications. AI auto-fill from any job page — LinkedIn, Workday, Indeed, and more.",
+  "permissions": ["activeTab", "scripting"],
+  "host_permissions": [
+    "https://api.anthropic.com/*",
+    "https://api.allorigins.win/*",
+    "https://corsproxy.io/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "CRE Job Tracker"
+  },
+  "background": {
+    "service_worker": "background.js"
+  }
+}

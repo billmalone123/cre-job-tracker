@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>CRE Job Tracker</title>
+  <style>
+    :root {
+      --bg:       #0b1726;
+      --surface:  #111f35;
+      --surface2: #172741;
+      --border:   #1e3554;
+      --accent:   #2f80ed;
+      --accent-h: #1a6fd4;
+      --text:     #dce9f9;
+      --muted:    #6b8db5;
+      --danger:   #e05252;
+      --green:    #27ae74;
+      --yellow:   #d4891a;
+      --purple:   #7c5cbf;
+      --r:        5px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { overflow-y: auto; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 14px;
+      line-height: 1.5;
+      width: 800px;
+    }
+
+    /* ── Modals ─────────────────────────────────────────────────────────── */
+    .overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.7);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 200; padding: 16px;
+    }
+    .overlay.hidden { display: none; }
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 28px;
+      width: 100%; max-width: 440px;
+    }
+    .modal h2 { font-size: 16px; margin-bottom: 6px; }
+    .modal p  { font-size: 13px; color: var(--muted); margin-bottom: 18px; line-height: 1.55; }
+
+    /* ── Header ──────────────────────────────────────────────────────────── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 18px;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 10px;
+      position: sticky; top: 0; z-index: 10;
+    }
+    header h1 { font-size: 15px; font-weight: 700; letter-spacing: -.2px; white-space: nowrap; }
+    .header-sub { font-size: 10px; color: var(--muted); margin-top: 1px; }
+    .header-right { display: flex; gap: 6px; align-items: center; flex-wrap: nowrap; }
+
+    /* ── Scrape-tab banner ───────────────────────────────────────────────── */
+    .scrape-banner {
+      background: linear-gradient(135deg, rgba(47,128,237,.15), rgba(47,128,237,.08));
+      border-bottom: 1px solid rgba(47,128,237,.25);
+      padding: 12px 18px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .scrape-banner button {
+      flex-shrink: 0;
+    }
+    .scrape-banner-text { font-size: 11px; color: var(--muted); line-height: 1.4; }
+    .scrape-banner-text strong { color: var(--text); display: block; margin-bottom: 1px; font-size: 12px; }
+
+    /* ── Stats ───────────────────────────────────────────────────────────── */
+    .stats {
+      display: flex; gap: 1px;
+      background: var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+    .stat {
+      flex: 1; padding: 9px 12px;
+      background: var(--surface);
+      text-align: center;
+    }
+    .stat-n   { font-size: 18px; font-weight: 700; }
+    .stat-lbl { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-top: 1px; }
+
+    /* ── Layout ──────────────────────────────────────────────────────────── */
+    main { padding: 14px 14px 32px; }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 14px;
+    }
+    .card-title {
+      font-size: 10px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: .6px;
+      color: var(--muted); margin-bottom: 12px;
+    }
+
+    /* ── Inputs ──────────────────────────────────────────────────────────── */
+    input, select, textarea {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      color: var(--text);
+      font-size: 13px;
+      padding: 7px 10px;
+      width: 100%;
+      font-family: inherit;
+      transition: border-color .15s;
+    }
+    input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }
+    input::placeholder { color: var(--muted); }
+    select option { background: var(--surface2); }
+    textarea { resize: vertical; min-height: 56px; }
+
+    label {
+      display: block;
+      font-size: 10px; font-weight: 500;
+      text-transform: uppercase; letter-spacing: .4px;
+      color: var(--muted); margin-bottom: 3px;
+    }
+
+    /* ── Buttons ─────────────────────────────────────────────────────────── */
+    .btn {
+      padding: 7px 14px;
+      border: none; border-radius: var(--r);
+      font-size: 13px; font-weight: 500;
+      cursor: pointer; font-family: inherit;
+      transition: opacity .15s, background .15s;
+      white-space: nowrap;
+    }
+    .btn:disabled { opacity: .45; cursor: not-allowed; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:not(:disabled):hover { background: var(--accent-h); }
+    .btn-ghost {
+      background: transparent; color: var(--muted);
+      border: 1px solid var(--border);
+    }
+    .btn-ghost:hover { color: var(--text); border-color: var(--muted); }
+    .btn-danger { background: transparent; color: var(--danger); border: 1px solid transparent; font-size: 12px; padding: 3px 8px; }
+    .btn-danger:hover { background: rgba(224,82,82,.1); }
+    .btn-sm { padding: 5px 11px; font-size: 12px; }
+
+    /* ── URL row ─────────────────────────────────────────────────────────── */
+    .url-row { display: flex; gap: 8px; margin-bottom: 10px; }
+    .url-row input { flex: 1; }
+
+    /* ── Alert ───────────────────────────────────────────────────────────── */
+    .alert {
+      padding: 8px 12px; border-radius: var(--r);
+      font-size: 12px; margin-bottom: 10px;
+      display: flex; align-items: flex-start; gap: 7px;
+    }
+    .alert.hidden { display: none; }
+    .alert-info    { background: rgba(47,128,237,.12); border: 1px solid rgba(47,128,237,.25); color: #93c5fd; }
+    .alert-success { background: rgba(39,174,116,.12); border: 1px solid rgba(39,174,116,.25); color: #6ee7b7; }
+    .alert-error   { background: rgba(224,82,82,.12);  border: 1px solid rgba(224,82,82,.25);  color: #fca5a5; }
+
+    .spinner {
+      display: inline-block; width: 12px; height: 12px; flex-shrink: 0;
+      border: 2px solid rgba(147,197,253,.25); border-top-color: #93c5fd;
+      border-radius: 50%; animation: spin .65s linear infinite; margin-top: 1px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Form grid ───────────────────────────────────────────────────────── */
+    .fgrid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 10px;
+    }
+    .fg { display: flex; flex-direction: column; }
+    .fg.full { grid-column: 1/-1; }
+    .form-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
+
+    /* ── Table ───────────────────────────────────────────────────────────── */
+    .tbl-header {
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 8px; margin-bottom: 8px;
+    }
+    .tbl-header-left { display: flex; align-items: center; gap: 10px; }
+    .filter-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+    .filter-row select, .filter-row input { width: auto; flex: 1; min-width: 120px; font-size: 12px; padding: 5px 9px; }
+    .tbl-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--r); }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th {
+      background: var(--surface2);
+      padding: 7px 11px;
+      text-align: left;
+      font-size: 10px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: .5px;
+      color: var(--muted); white-space: nowrap;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer; user-select: none;
+    }
+    th:hover { color: var(--text); }
+    th.sorted { color: var(--accent); }
+    td {
+      padding: 7px 11px;
+      border-bottom: 1px solid rgba(30,53,84,.55);
+      vertical-align: middle;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(47,128,237,.04); }
+    .co-name { font-weight: 500; font-size: 12px; }
+    .co-link  { color: var(--accent); text-decoration: none; font-size: 11px; }
+    .co-link:hover { text-decoration: underline; }
+    .notes-td {
+      max-width: 140px; color: var(--muted);
+      font-size: 11px; line-height: 1.4;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+
+    /* ── Status selects in table ─────────────────────────────────────────── */
+    .tsel {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: var(--r); color: var(--text);
+      font-size: 11px; padding: 3px 7px;
+      font-family: inherit; cursor: pointer; width: 100%;
+    }
+    .tsel:focus { outline: none; border-color: var(--accent); }
+
+    /* ── Empty state ─────────────────────────────────────────────────────── */
+    .empty {
+      text-align: center; padding: 36px 20px;
+      color: var(--muted); font-size: 12px;
+    }
+    .empty strong { display: block; font-size: 14px; color: #4a6d96; margin-bottom: 4px; }
+
+    /* ── Count pill ──────────────────────────────────────────────────────── */
+    .pill {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 20px; padding: 1px 9px;
+      font-size: 11px; color: var(--muted);
+    }
+
+    /* ── API key dot ─────────────────────────────────────────────────────── */
+    .dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; margin-right: 4px; }
+    .dot-on  { background: var(--green); }
+    .dot-off { background: var(--danger); }
+
+    /* ── Add-form collapsible ────────────────────────────────────────────── */
+    #addSection { display: none; }
+    #addSection.open { display: block; }
+
+    /* ── Divider ─────────────────────────────────────────────────────────── */
+    .divider {
+      text-align: center; font-size: 10px; color: var(--muted);
+      margin: 8px 0; position: relative;
+    }
+    .divider::before, .divider::after {
+      content: ''; position: absolute; top: 50%;
+      width: 42%; height: 1px; background: var(--border);
+    }
+    .divider::before { left: 0; }
+    .divider::after  { right: 0; }
+  </style>
+</head>
+<body>
+
+<!-- ── API Key Modal ─────────────────────────────────────────────────────────── -->
+<div id="apiOverlay" class="overlay hidden">
+  <div class="modal">
+    <h2>Anthropic API Key</h2>
+    <p>Stored only in this extension. Sent exclusively to <strong>api.anthropic.com</strong> for AI auto-fill.</p>
+    <div class="fg" style="margin-bottom:16px">
+      <label>API Key</label>
+      <input id="apiKeyInp" type="password" placeholder="sk-ant-api03-…">
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-ghost" id="apiCancelBtn">Cancel</button>
+      <button class="btn btn-primary" id="apiSaveBtn">Save Key</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Delete Confirm Modal ──────────────────────────────────────────────────── -->
+<div id="delOverlay" class="overlay hidden">
+  <div class="modal" style="max-width:360px">
+    <h2>Delete Application</h2>
+    <p id="delMsg">Remove this application? This cannot be undone.</p>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-ghost" id="delCancelBtn">Cancel</button>
+      <button class="btn btn-primary" style="background:var(--danger)" id="delConfirmBtn">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Header ────────────────────────────────────────────────────────────────── -->
+<header>
+  <div>
+    <h1>CRE Job Tracker</h1>
+    <div class="header-sub">Commercial Real Estate Opportunities</div>
+  </div>
+  <div class="header-right">
+    <button class="btn btn-ghost btn-sm" id="apiKeyBtn">
+      <span class="dot dot-off" id="apiDot"></span>API Key
+    </button>
+    <button class="btn btn-primary btn-sm" id="openAddBtn">+ Add Job</button>
+  </div>
+</header>
+
+<!-- ── Scrape This Tab Banner ────────────────────────────────────────────────── -->
+<div class="scrape-banner">
+  <button class="btn btn-primary" id="scrapeTabBtn">⚡ Scrape This Job Page</button>
+  <div class="scrape-banner-text">
+    <strong>Works on LinkedIn, Workday, Indeed &amp; more</strong>
+    Navigate to a job posting, then click to auto-fill the form with AI.
+  </div>
+</div>
+
+<!-- ── Stats Bar ─────────────────────────────────────────────────────────────── -->
+<div class="stats">
+  <div class="stat"><div class="stat-n" id="sTotal">0</div><div class="stat-lbl">Total</div></div>
+  <div class="stat"><div class="stat-n" id="sActive">0</div><div class="stat-lbl">Active</div></div>
+  <div class="stat"><div class="stat-n" id="sInterview">0</div><div class="stat-lbl">Interviews</div></div>
+  <div class="stat"><div class="stat-n" id="sOffer">0</div><div class="stat-lbl">Offers</div></div>
+</div>
+
+<!-- ── Alert for scrape banner ───────────────────────────────────────────────── -->
+<div style="padding: 0 14px">
+  <div id="scrapeAlert" class="alert hidden" style="margin-top:10px"></div>
+</div>
+
+<!-- ── Main ──────────────────────────────────────────────────────────────────── -->
+<main>
+
+  <!-- Add Section -->
+  <div id="addSection">
+    <div class="card">
+      <div class="card-title">Add Application</div>
+
+      <!-- URL Scraper (fallback) -->
+      <div class="url-row">
+        <input id="urlInp" type="url" placeholder="Or paste a URL to fetch details…">
+        <button class="btn btn-ghost btn-sm" id="fetchBtn">Fetch</button>
+      </div>
+
+      <div class="divider">or upload screenshot</div>
+
+      <!-- Screenshot Upload -->
+      <div class="url-row">
+        <label id="imgLabel" class="btn btn-ghost" style="cursor:pointer;flex:1;text-align:center;font-size:12px">
+          📷 Upload Screenshot(s)
+          <input id="imgInp" type="file" accept="image/*" multiple style="display:none;">
+        </label>
+      </div>
+
+      <div class="divider">or fill in manually</div>
+
+      <!-- Form -->
+      <div id="formAlert" class="alert hidden"></div>
+      <div class="fgrid">
+        <div class="fg">
+          <label>Company *</label>
+          <input id="fCo" type="text" placeholder="CBRE, JLL, Eastdil…">
+        </div>
+        <div class="fg">
+          <label>Job Title *</label>
+          <input id="fTitle" type="text" placeholder="Investment Sales Associate…">
+        </div>
+        <div class="fg">
+          <label>Location</label>
+          <input id="fLoc" type="text" placeholder="New York, NY">
+        </div>
+        <div class="fg">
+          <label>Date Found</label>
+          <input id="fDate" type="date">
+        </div>
+        <div class="fg">
+          <label>Deadline</label>
+          <input id="fDeadline" type="date">
+        </div>
+        <div class="fg">
+          <label>Status</label>
+          <select id="fStatus">
+            <option>Interested</option>
+            <option>Applied</option>
+            <option>Phone Screen</option>
+            <option>Interview</option>
+            <option>Offer</option>
+            <option>Rejected</option>
+          </select>
+        </div>
+        <div class="fg">
+          <label>Target Bucket</label>
+          <select id="fBucket">
+            <option value="">— Select —</option>
+            <option>Capital Markets Advisory</option>
+            <option>Investment Sales Brokerage</option>
+            <option>Leasing Brokerage</option>
+            <option>Development</option>
+          </select>
+        </div>
+        <div class="fg">
+          <label>Job URL</label>
+          <input id="fUrl" type="url" placeholder="https://…">
+        </div>
+        <div class="fg full">
+          <label>Notes</label>
+          <textarea id="fNotes" placeholder="Recruiter name, referral, comp, follow-up date…"></textarea>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-ghost btn-sm" id="cancelFormBtn">Cancel</button>
+        <button class="btn btn-primary btn-sm" id="saveJobBtn">Save Application</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Table Section -->
+  <div class="card">
+    <div class="tbl-header">
+      <div class="tbl-header-left">
+        <span class="card-title" style="margin:0">Applications</span>
+        <span class="pill" id="countPill">0</span>
+      </div>
+      <button class="btn btn-ghost btn-sm" id="exportBtn">Export CSV</button>
+    </div>
+
+    <div class="filter-row">
+      <select id="fltStatus">
+        <option value="">All Statuses</option>
+        <option>Interested</option><option>Applied</option>
+        <option>Phone Screen</option><option>Interview</option>
+        <option>Offer</option><option>Rejected</option>
+      </select>
+      <select id="fltBucket">
+        <option value="">All Buckets</option>
+        <option>Capital Markets Advisory</option>
+        <option>Investment Sales Brokerage</option>
+        <option>Leasing Brokerage</option>
+        <option>Development</option>
+      </select>
+      <input id="fltSearch" type="text" placeholder="Search company or title…">
+    </div>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th data-col="co">Company</th>
+            <th data-col="title">Title</th>
+            <th data-col="loc">Location</th>
+            <th data-col="date">Date</th>
+            <th data-col="deadline">Deadline</th>
+            <th data-col="status">Status</th>
+            <th data-col="bucket">Bucket</th>
+            <th>Notes</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <div class="empty hidden" id="emptyState">
+        <strong>No applications yet</strong>
+        Navigate to a job page and click ⚡ Scrape This Job Page to get started.
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<script src="popup.js"></script>
+</body>
+</html>
