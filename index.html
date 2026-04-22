@@ -358,7 +358,7 @@
       <div class="url-row">
         <label id="imgLabel" class="btn btn-ghost" style="cursor:pointer;flex:1;text-align:center;">
           📷 Upload Screenshot of Job Posting
-          <input id="imgInp" type="file" accept="image/*" style="display:none;">
+          <input id="imgInp" type="file" accept="image/*" multiple style="display:none;">
         </label>
       </div>
       <div id="scrapeAlert" class="alert hidden"></div>
@@ -683,8 +683,8 @@ ${text}`
 
 // ─── Screenshot → Claude Vision ───────────────────────────────────────────────
 $('imgInp').onchange = async () => {
-  const file = $('imgInp').files[0];
-  if (!file) return;
+  const files = Array.from($('imgInp').files);
+  if (!files.length) return;
 
   const key = apiKey();
   if (!key) {
@@ -694,33 +694,25 @@ $('imgInp').onchange = async () => {
 
   const label = $('imgLabel');
   label.style.opacity = '0.6';
-  showAlert('scrapeAlert','info','Reading screenshot…',true);
+  showAlert('scrapeAlert','info',`Reading ${files.length} screenshot${files.length>1?'s':''}…`,true);
 
   try {
-    // Read image as base64
-    const base64 = await new Promise((res, rej) => {
+    // Read all images as base64 in parallel
+    const images = await Promise.all(files.map(f => new Promise((res, rej) => {
       const reader = new FileReader();
-      reader.onload = e => res(e.target.result.split(',')[1]);
+      reader.onload = e => res({ data: e.target.result.split(',')[1], mediaType: f.type || 'image/png' });
       reader.onerror = rej;
-      reader.readAsDataURL(file);
-    });
-    const mediaType = file.type || 'image/png';
+      reader.readAsDataURL(f);
+    })));
 
     showAlert('scrapeAlert','info','Analyzing with Claude…',true);
 
-    const body = {
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1024,
-      messages: [{
-        role: 'user',
-        content: [
-          {
-            type: 'image',
-            source: { type: 'base64', media_type: mediaType, data: base64 }
-          },
-          {
-            type: 'text',
-            text: `Extract job details from this screenshot of a job posting. Return ONLY a valid JSON object — no markdown, no explanation.
+    // Build content array: all images first, then the prompt
+    const content = [
+      ...images.map(img => ({ type: 'image', source: { type: 'base64', media_type: img.mediaType, data: img.data } })),
+      {
+        type: 'text',
+        text: `Extract job details from these ${images.length} screenshot(s) of a job posting. Treat them as one posting — use all screenshots together. Return ONLY a valid JSON object — no markdown, no explanation.
 
 Fields:
 - company     (string)
@@ -735,9 +727,13 @@ Bucket logic:
 • Investment Sales Brokerage — buying/selling commercial properties, deal teams, disposition
 • Leasing Brokerage — leasing office/retail/industrial, tenant or landlord rep
 • Development — ground-up development, construction management, value-add, asset management`
-          }
-        ]
-      }]
+      }
+    ];
+
+    const body = {
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1024,
+      messages: [{ role: 'user', content }]
     };
 
     const cRes = await fetch('https://api.anthropic.com/v1/messages', {
