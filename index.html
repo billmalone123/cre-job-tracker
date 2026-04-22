@@ -353,6 +353,14 @@
         <input id="urlInp" type="url" placeholder="Paste job posting URL to auto-fill details…">
         <button class="btn btn-primary" id="fetchBtn">Fetch Details</button>
       </div>
+      <div class="divider">or</div>
+      <!-- Screenshot Upload -->
+      <div class="url-row">
+        <label id="imgLabel" class="btn btn-ghost" style="cursor:pointer;flex:1;text-align:center;">
+          📷 Upload Screenshot of Job Posting
+          <input id="imgInp" type="file" accept="image/*" style="display:none;">
+        </label>
+      </div>
       <div id="scrapeAlert" class="alert hidden"></div>
 
       <div class="divider">or fill in manually</div>
@@ -562,29 +570,42 @@ $('fetchBtn').onclick = async () => {
   showAlert('scrapeAlert','info','Fetching page…',true);
 
   try {
-    // Step 1 — CORS proxy
-    const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
-    const pRes  = await fetch(proxy, { signal: AbortSignal.timeout(12000) });
-    if (!pRes.ok) throw new Error('CORS proxy returned ' + pRes.status);
-    const pData = await pRes.json();
-    const html  = pData.contents || '';
-    if (html.length < 80) throw new Error('Page returned no content');
+    // Step 1 — CORS proxy (try two services)
+    let html = '';
+    const proxies = [
+      async u => {
+        const r = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(u)}`, { signal: AbortSignal.timeout(12000) });
+        if (!r.ok) throw new Error('allorigins ' + r.status);
+        return (await r.json()).contents || '';
+      },
+      async u => {
+        const r = await fetch(`https://corsproxy.io/?url=${encodeURIComponent(u)}`, { signal: AbortSignal.timeout(12000) });
+        if (!r.ok) throw new Error('corsproxy ' + r.status);
+        return r.text();
+      }
+    ];
+    let proxyErr = '';
+    for (const proxy of proxies) {
+      try { html = await proxy(url); if (html.length >= 80) break; }
+      catch (e) { proxyErr = e.message; }
+    }
+    if (html.length < 80) throw new Error('Could not fetch page — site may block proxies. Error: ' + proxyErr);
 
-    // Strip tags → plain text, cap at 10 000 chars
+    // Strip tags → plain text, cap at 18 000 chars
     const text = html
       .replace(/<style[\s\S]*?<\/style>/gi,'')
       .replace(/<script[\s\S]*?<\/script>/gi,'')
       .replace(/<[^>]+>/g,' ')
       .replace(/\s{2,}/g,' ')
       .trim()
-      .slice(0, 10000);
+      .slice(0, 18000);
 
     showAlert('scrapeAlert','info','Analyzing with Claude…',true);
 
     // Step 2 — Claude
     const body = {
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 512,
+      max_tokens: 1024,
       messages: [{
         role: 'user',
         content: `Extract job details from this job posting. Return ONLY a valid JSON object — no markdown, no explanation.
@@ -657,6 +678,113 @@ ${text}`
     $('fDate').value = iso();
   } finally {
     $('fetchBtn').disabled = false;
+  }
+};
+
+// ─── Screenshot → Claude Vision ───────────────────────────────────────────────
+$('imgInp').onchange = async () => {
+  const file = $('imgInp').files[0];
+  if (!file) return;
+
+  const key = apiKey();
+  if (!key) {
+    showAlert('scrapeAlert','error','No API key set — click <strong>API Key</strong> in the header first.');
+    return;
+  }
+
+  const label = $('imgLabel');
+  label.style.opacity = '0.6';
+  showAlert('scrapeAlert','info','Reading screenshot…',true);
+
+  try {
+    // Read image as base64
+    const base64 = await new Promise((res, rej) => {
+      const reader = new FileReader();
+      reader.onload = e => res(e.target.result.split(',')[1]);
+      reader.onerror = rej;
+      reader.readAsDataURL(file);
+    });
+    const mediaType = file.type || 'image/png';
+
+    showAlert('scrapeAlert','info','Analyzing with Claude…',true);
+
+    const body = {
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1024,
+      messages: [{
+        role: 'user',
+        content: [
+          {
+            type: 'image',
+            source: { type: 'base64', media_type: mediaType, data: base64 }
+          },
+          {
+            type: 'text',
+            text: `Extract job details from this screenshot of a job posting. Return ONLY a valid JSON object — no markdown, no explanation.
+
+Fields:
+- company     (string)
+- title       (string)
+- location    (string — city, state or "Remote")
+- deadline    (string — ISO date YYYY-MM-DD, or "" if not listed)
+- bucket_guess (string — one of exactly: "Capital Markets Advisory", "Investment Sales Brokerage", "Leasing Brokerage", "Development", or "")
+- notes_prefill (string — 1-2 sentences: key requirements, comp if mentioned, team context)
+
+Bucket logic:
+• Capital Markets Advisory — debt/equity placement, structured finance, investment banking-adjacent
+• Investment Sales Brokerage — buying/selling commercial properties, deal teams, disposition
+• Leasing Brokerage — leasing office/retail/industrial, tenant or landlord rep
+• Development — ground-up development, construction management, value-add, asset management`
+          }
+        ]
+      }]
+    };
+
+    const cRes = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(30000)
+    });
+
+    if (!cRes.ok) {
+      const e = await cRes.json().catch(() => ({}));
+      throw new Error(e?.error?.message || `Claude API error ${cRes.status}`);
+    }
+
+    const cData   = await cRes.json();
+    const rawText = cData.content?.[0]?.text || '';
+    const match   = rawText.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error('Could not parse Claude response');
+
+    const d = JSON.parse(match[0]);
+
+    if (d.company)       $('fCo').value      = d.company;
+    if (d.title)         $('fTitle').value    = d.title;
+    if (d.location)      $('fLoc').value      = d.location;
+    if (d.deadline)      $('fDeadline').value = d.deadline;
+    if (d.notes_prefill) $('fNotes').value    = d.notes_prefill;
+    $('fDate').value = iso();
+    if (d.bucket_guess) {
+      for (const opt of $('fBucket').options) {
+        if (opt.value === d.bucket_guess) { $('fBucket').value = d.bucket_guess; break; }
+      }
+    }
+
+    showAlert('scrapeAlert','success',
+      `Found: <strong>${esc(d.title||'?')}</strong> at <strong>${esc(d.company||'?')}</strong> — review and save below.`);
+
+  } catch (err) {
+    console.error(err);
+    showAlert('scrapeAlert','error', `Screenshot scan failed: ${esc(err.message)}`);
+  } finally {
+    label.style.opacity = '1';
+    $('imgInp').value = '';
   }
 };
 
