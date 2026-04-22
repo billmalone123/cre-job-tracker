@@ -880,16 +880,10 @@ function render() {
 
   // Sort indicators
   document.querySelectorAll('th[data-col]').forEach(th => {
+    if (!th.dataset.label) th.dataset.label = th.textContent.trim();
     th.classList.toggle('sorted', th.dataset.col === sortCol);
     const arrow = th.dataset.col === sortCol ? (sortDir === 'asc' ? ' ↑' : ' ↓') : '';
-    th.dataset.arrow = arrow;
-    th.lastChild.textContent = arrow; // simple — text node at end
-  });
-  // Rebuild headers cleanly
-  document.querySelectorAll('th[data-col]').forEach(th => {
-    const base = th.textContent.replace(/[ ↑↓]+$/,'');
-    const arrow = th.dataset.col === sortCol ? (sortDir === 'asc' ? ' ↑' : ' ↓') : '';
-    th.textContent = base + arrow;
+    th.textContent = th.dataset.label + arrow;
   });
 
   // Count pill
